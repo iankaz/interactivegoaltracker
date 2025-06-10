@@ -13,6 +13,9 @@ const milestoneRoutes = require('./routes/milestone.routes');
 
 const app = express();
 
+// Trust proxy
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -117,6 +120,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`API Documentation available at ${BASE_URL}/api-docs`);
   console.log(`Base URL: ${BASE_URL}`);
+  console.log('Environment:', process.env.NODE_ENV);
 });
 
 // Handle server errors

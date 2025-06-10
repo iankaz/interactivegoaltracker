@@ -11,11 +11,14 @@ const callbackURL = process.env.NODE_ENV === 'production'
   : 'http://localhost:3000/api/auth/github/callback';
 
 console.log('Using GitHub callback URL:', callbackURL);
+console.log('GitHub Client ID:', process.env.GITHUB_CLIENT_ID ? 'Set' : 'Not Set');
+console.log('GitHub Client Secret:', process.env.GITHUB_CLIENT_SECRET ? 'Set' : 'Not Set');
 
 passport.use(new GitHubStrategy({
     clientID: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
-    callbackURL: callbackURL
+    callbackURL: callbackURL,
+    proxy: true // Add this to handle proxy issues
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
@@ -75,6 +78,7 @@ const generateToken = (user) => {
 // GitHub OAuth routes
 exports.githubAuth = (req, res, next) => {
   console.log('Starting GitHub authentication...');
+  console.log('Request headers:', req.headers);
   passport.authenticate('github', { 
     scope: ['user:email'],
     session: false 
@@ -84,13 +88,19 @@ exports.githubAuth = (req, res, next) => {
 exports.githubCallback = (req, res, next) => {
   console.log('GitHub callback received with code:', req.query.code);
   console.log('Callback URL:', req.originalUrl);
+  console.log('Request headers:', req.headers);
   
-  passport.authenticate('github', { session: false }, (err, user) => {
+  passport.authenticate('github', { 
+    session: false,
+    failureRedirect: '/auth/error'
+  }, (err, user) => {
     if (err) {
       console.error('Authentication error:', err);
+      console.error('Error stack:', err.stack);
       return res.status(401).send(`
         <h2>Authentication failed</h2>
         <p>Error: ${err.message}</p>
+        <p>Details: ${err.stack}</p>
         <p>Please try again or contact support if the problem persists.</p>
       `);
     }
