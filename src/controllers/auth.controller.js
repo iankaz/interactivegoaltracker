@@ -18,11 +18,7 @@ passport.use(new OAuth2Strategy({
     clientID: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
     callbackURL: callbackURL,
-    scope: ['user:email'],
-    state: true,
-    customHeaders: {
-      'Accept': 'application/json'
-    }
+    scope: ['user:email']
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
@@ -33,10 +29,22 @@ passport.use(new OAuth2Strategy({
         emails: profile.emails
       });
 
+      if (!profile.id) {
+        console.error('No profile ID received from GitHub');
+        return done(new Error('No profile ID received from GitHub'));
+      }
+
       // Find or create user
       let user = await User.findOne({ githubId: profile.id });
       
       if (!user) {
+        console.log('Creating new user with profile:', {
+          githubId: profile.id,
+          username: profile.username,
+          displayName: profile.displayName,
+          email: profile.emails?.[0]?.value
+        });
+        
         user = await User.create({
           githubId: profile.id,
           username: profile.username,
@@ -51,6 +59,12 @@ passport.use(new OAuth2Strategy({
       return done(null, user);
     } catch (error) {
       console.error('Error in OAuth callback:', error);
+      console.error('Error details:', {
+        message: error.message,
+        name: error.name,
+        code: error.code,
+        stack: error.stack
+      });
       return done(error);
     }
   }
@@ -78,8 +92,7 @@ exports.githubAuth = (req, res, next) => {
   console.log('GitHub Client ID:', process.env.GITHUB_CLIENT_ID);
   
   passport.authenticate('oauth2', {
-    scope: ['user:email'],
-    session: false
+    scope: ['user:email']
   })(req, res, next);
 };
 
@@ -88,17 +101,34 @@ exports.githubCallback = (req, res, next) => {
   console.log('GitHub callback received with code:', req.query.code);
   console.log('Callback URL:', req.originalUrl);
   console.log('Request headers:', req.headers);
+  console.log('Environment:', {
+    nodeEnv: process.env.NODE_ENV,
+    hasClientId: !!process.env.GITHUB_CLIENT_ID,
+    hasClientSecret: !!process.env.GITHUB_CLIENT_SECRET,
+    hasJwtSecret: !!process.env.JWT_SECRET,
+    hasSessionSecret: !!process.env.SESSION_SECRET,
+    callbackUrl: callbackURL
+  });
 
   passport.authenticate('oauth2', {
-    session: false,
-    failureRedirect: '/login'
-  }, async (err, user, info) => {
+    session: false
+  }, async (err, user) => {
     if (err) {
       console.error('Authentication error:', err);
       console.error('Error stack:', err.stack);
+      console.error('Error details:', {
+        message: err.message,
+        name: err.name,
+        code: err.code
+      });
       return res.status(500).json({
         message: 'Authentication failed',
-        error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+        error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
+        details: process.env.NODE_ENV === 'development' ? {
+          name: err.name,
+          code: err.code,
+          stack: err.stack
+        } : undefined
       });
     }
 
