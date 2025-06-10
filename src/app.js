@@ -112,8 +112,17 @@ const BASE_URL = process.env.NODE_ENV === 'production'
   ? 'https://cse341-rlcp.onrender.com'
   : `http://localhost:${PORT}`;
 
-app.listen(PORT, () => {
+// Start server
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`API Documentation available at ${BASE_URL}/api-docs`);
   console.log(`Base URL: ${BASE_URL}`);
+});
+
+// Handle server errors
+server.on('error', (error) => {
+  console.error('Server error:', error);
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use`);
+  }
 }); 
