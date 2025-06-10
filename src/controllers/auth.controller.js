@@ -3,225 +3,138 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
 const OAuth2Strategy = require('passport-oauth2').Strategy;
 
-// GitHub OAuth strategy configuration
-const GitHubStrategy = require('passport-github2').Strategy;
-
-// Configure callback URL
-const callbackURL = 'https://cse341-rlcp.onrender.com/api/auth/github/callback';
+// Configure GitHub OAuth Strategy
+const callbackURL = process.env.NODE_ENV === 'production' 
+  ? 'https://cse341-rlcp.onrender.com/api/auth/github/callback'
+  : 'http://localhost:3000/api/auth/github/callback';
 
 console.log('Using GitHub callback URL:', callbackURL);
 console.log('GitHub Client ID:', process.env.GITHUB_CLIENT_ID ? 'Set' : 'Not Set');
 console.log('GitHub Client Secret:', process.env.GITHUB_CLIENT_SECRET ? 'Set' : 'Not Set');
 
-// Verify environment variables
-if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
-  console.error('Missing required GitHub OAuth environment variables!');
-  console.error('GITHUB_CLIENT_ID:', process.env.GITHUB_CLIENT_ID ? 'Set' : 'Not Set');
-  console.error('GITHUB_CLIENT_SECRET:', process.env.GITHUB_CLIENT_SECRET ? 'Set' : 'Not Set');
-}
-
-// Create a custom OAuth2 strategy for GitHub
-class CustomGitHubStrategy extends OAuth2Strategy {
-  constructor(options, verify) {
-    options = options || {};
-    options.authorizationURL = options.authorizationURL || 'https://github.com/login/oauth/authorize';
-    options.tokenURL = options.tokenURL || 'https://github.com/login/oauth/access_token';
-    options.scope = options.scope || 'user:email';
-    options.customHeaders = options.customHeaders || {
-      'Accept': 'application/json'
-    };
-
-    super(options, verify);
-    this.name = 'github';
-    this._userProfileURL = 'https://api.github.com/user';
-    this._userEmailURL = 'https://api.github.com/user/emails';
-  }
-
-  userProfile(accessToken, done) {
-    this._oauth2.get(this._userProfileURL, accessToken, (err, body, res) => {
-      if (err) {
-        return done(err);
-      }
-
-      try {
-        const json = JSON.parse(body);
-        const profile = {
-          id: json.id,
-          username: json.login,
-          displayName: json.name,
-          photos: json.avatar_url ? [{ value: json.avatar_url }] : [],
-          emails: []
-        };
-
-        // Get user emails
-        this._oauth2.get(this._userEmailURL, accessToken, (err, body, res) => {
-          if (err) {
-            return done(err);
-          }
-
-          try {
-            const emails = JSON.parse(body);
-            profile.emails = emails
-              .filter(email => email.primary)
-              .map(email => ({ value: email.email }));
-            return done(null, profile);
-          } catch (e) {
-            return done(e);
-          }
-        });
-      } catch (e) {
-        return done(e);
-      }
-    });
-  }
-}
-
-passport.use(new CustomGitHubStrategy({
+passport.use(new OAuth2Strategy({
+    authorizationURL: 'https://github.com/login/oauth/authorize',
+    tokenURL: 'https://github.com/login/oauth/access_token',
     clientID: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
     callbackURL: callbackURL,
-    proxy: true,
-    passReqToCallback: true
+    scope: ['user:email'],
+    state: true,
+    customHeaders: {
+      'Accept': 'application/json'
+    }
   },
-  async (req, accessToken, refreshToken, profile, done) => {
+  async (accessToken, refreshToken, profile, done) => {
     try {
-      console.log('GitHub Profile:', {
+      console.log('OAuth callback received with profile:', {
         id: profile.id,
         username: profile.username,
-        emails: profile.emails,
-        photos: profile.photos
+        displayName: profile.displayName,
+        emails: profile.emails
       });
 
-      // Check if user exists
+      // Find or create user
       let user = await User.findOne({ githubId: profile.id });
       
       if (!user) {
-        console.log('Creating new user for GitHub ID:', profile.id);
-        // Create new user if doesn't exist
         user = await User.create({
           githubId: profile.id,
           username: profile.username,
-          email: profile.emails?.[0]?.value || `${profile.username}@github.com`,
-          avatar: profile.photos?.[0]?.value
+          displayName: profile.displayName,
+          email: profile.emails?.[0]?.value
         });
-        console.log('New user created:', user._id);
+        console.log('Created new user:', user._id);
       } else {
-        console.log('Existing user found:', user._id);
-        // Update last login
-        user.lastLogin = Date.now();
-        await user.save();
+        console.log('Found existing user:', user._id);
       }
-      
+
       return done(null, user);
     } catch (error) {
-      console.error('GitHub OAuth Error:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-      return done(error, null);
+      console.error('Error in OAuth callback:', error);
+      return done(error);
     }
   }
 ));
 
-// Generate JWT token
-const generateToken = (user) => {
-  if (!user || !user._id) {
-    console.error('Invalid user object:', user);
-    throw new Error('Invalid user object');
-  }
-  return jwt.sign(
-    { id: user._id, email: user.email },
-    process.env.JWT_SECRET || 'fallback_secret_key',
-    { expiresIn: '24h' }
-  );
-};
+// Serialize user
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
 
-// GitHub OAuth routes
+// Deserialize user
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await User.findById(id);
+    done(null, user);
+  } catch (error) {
+    done(error);
+  }
+});
+
+// GitHub authentication
 exports.githubAuth = (req, res, next) => {
   console.log('Starting GitHub authentication...');
   console.log('Request headers:', req.headers);
   console.log('GitHub Client ID:', process.env.GITHUB_CLIENT_ID);
   
-  if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
-    return res.status(500).send(`
-      <h2>Server Configuration Error</h2>
-      <p>GitHub OAuth credentials are not properly configured.</p>
-      <p>Please contact the administrator.</p>
-    `);
-  }
-
-  passport.authenticate('github', { 
+  passport.authenticate('oauth2', {
     scope: ['user:email'],
-    session: false 
+    session: false
   })(req, res, next);
 };
 
+// GitHub callback
 exports.githubCallback = (req, res, next) => {
   console.log('GitHub callback received with code:', req.query.code);
   console.log('Callback URL:', req.originalUrl);
   console.log('Request headers:', req.headers);
-  
-  if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
-    return res.status(500).send(`
-      <h2>Server Configuration Error</h2>
-      <p>GitHub OAuth credentials are not properly configured.</p>
-      <p>Please contact the administrator.</p>
-    `);
-  }
 
-  passport.authenticate('github', { 
+  passport.authenticate('oauth2', {
     session: false,
-    failureRedirect: '/auth/error'
-  }, (err, user) => {
+    failureRedirect: '/login'
+  }, async (err, user, info) => {
     if (err) {
       console.error('Authentication error:', err);
       console.error('Error stack:', err.stack);
-      return res.status(401).send(`
-        <h2>Authentication failed</h2>
-        <p>Error: ${err.message}</p>
-        <p>Details: ${err.stack}</p>
-        <p>Please try again or contact support if the problem persists.</p>
-      `);
+      return res.status(500).json({
+        message: 'Authentication failed',
+        error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+      });
     }
+
     if (!user) {
       console.error('No user returned from authentication');
-      return res.status(401).send(`
-        <h2>Authentication failed</h2>
-        <p>No user data received from GitHub.</p>
-        <p>Please try again or contact support if the problem persists.</p>
-      `);
+      return res.status(401).json({
+        message: 'Authentication failed',
+        error: 'No user returned from authentication'
+      });
     }
+
     try {
-      const token = generateToken(user);
-      console.log('Token generated successfully for user:', user._id);
-      // Return a simple HTML page with the token and a copy button
-      res.send(`
-        <html>
-          <body>
-            <h2>Authentication Successful!</h2>
-            <p>Copy and use this token in Swagger or Postman:</p>
-            <input type="text" value="${token}" id="token" style="width:80%" readonly />
-            <button onclick="copyToken()">Copy Token</button>
-            <script>
-              function copyToken() {
-                var copyText = document.getElementById('token');
-                copyText.select();
-                document.execCommand('copy');
-                alert('Token copied to clipboard!');
-              }
-            </script>
-          </body>
-        </html>
-      `);
+      // Generate JWT token
+      const token = jwt.sign(
+        { id: user._id },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      // Send token and user info
+      res.json({
+        message: 'Authentication successful',
+        token,
+        user: {
+          id: user._id,
+          username: user.username,
+          displayName: user.displayName,
+          email: user.email
+        }
+      });
     } catch (error) {
-      console.error('Token generation error:', error);
-      res.status(500).send(`
-        <h2>Token generation failed</h2>
-        <p>Error: ${error.message}</p>
-        <p>Please try again or contact support if the problem persists.</p>
-      `);
+      console.error('Error generating token:', error);
+      res.status(500).json({
+        message: 'Error generating token',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
     }
   })(req, res, next);
 };
@@ -235,16 +148,24 @@ exports.getCurrentUser = async (req, res) => {
     }
     res.json(user);
   } catch (error) {
-    console.error('Get Current User Error:', error);
-    res.status(500).json({ 
-      message: 'Server error', 
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    console.error('Error getting current user:', error);
+    res.status(500).json({
+      message: 'Error getting current user',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 };
 
 // Logout
 exports.logout = (req, res) => {
-  res.clearCookie('auth_token');
-  res.json({ message: 'Logged out successfully' });
+  req.logout((err) => {
+    if (err) {
+      console.error('Error during logout:', err);
+      return res.status(500).json({
+        message: 'Error during logout',
+        error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+      });
+    }
+    res.json({ message: 'Logged out successfully' });
+  });
 }; 

@@ -31,9 +31,9 @@ router.get('/test-config', (req, res) => {
  * @swagger
  * /api/auth/github:
  *   get:
- *     summary: Authenticate with GitHub
- *     description: Redirects to GitHub OAuth login
- *     tags: [Auth]
+ *     summary: Start GitHub OAuth authentication
+ *     description: Redirects to GitHub for authentication
+ *     tags: [Authentication]
  *     responses:
  *       302:
  *         description: Redirects to GitHub
@@ -46,10 +46,41 @@ router.get('/github', authController.githubAuth);
  *   get:
  *     summary: GitHub OAuth callback
  *     description: Handles the callback from GitHub OAuth
- *     tags: [Auth]
+ *     tags: [Authentication]
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: Authorization code from GitHub
  *     responses:
- *       302:
- *         description: Redirects to client with token
+ *       200:
+ *         description: Authentication successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 token:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                     username:
+ *                       type: string
+ *                     displayName:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *       401:
+ *         description: Authentication failed
+ *       500:
+ *         description: Server error
  */
 router.get('/github/callback', authController.githubCallback);
 
@@ -58,15 +89,21 @@ router.get('/github/callback', authController.githubCallback);
  * /api/auth/me:
  *   get:
  *     summary: Get current user
- *     description: Returns the currently authenticated user
- *     tags: [Auth]
+ *     description: Returns the currently authenticated user's information
+ *     tags: [Authentication]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: User data
+ *         description: User information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/User'
  *       401:
  *         description: Not authenticated
+ *       500:
+ *         description: Server error
  */
 router.get('/me', authenticate, authController.getCurrentUser);
 
@@ -76,12 +113,21 @@ router.get('/me', authenticate, authController.getCurrentUser);
  *   post:
  *     summary: Logout user
  *     description: Logs out the current user
- *     tags: [Auth]
+ *     tags: [Authentication]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Logged out successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: Server error
  */
 router.post('/logout', authenticate, authController.logout);
 
