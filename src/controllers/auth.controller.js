@@ -6,10 +6,8 @@ const OAuth2Strategy = require('passport-oauth2').Strategy;
 // GitHub OAuth strategy configuration
 const GitHubStrategy = require('passport-github2').Strategy;
 
-// Configure callback URL based on environment
-const callbackURL = process.env.NODE_ENV === 'production'
-  ? 'https://cse341-rlcp.onrender.com/api/auth/github/callback'
-  : 'http://localhost:3000/api/auth/github/callback';
+// Configure callback URL
+const callbackURL = 'https://cse341-rlcp.onrender.com/api/auth/github/callback';
 
 console.log('Using GitHub callback URL:', callbackURL);
 console.log('GitHub Client ID:', process.env.GITHUB_CLIENT_ID ? 'Set' : 'Not Set');

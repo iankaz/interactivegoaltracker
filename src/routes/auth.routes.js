@@ -20,9 +20,7 @@ router.get('/test-config', (req, res) => {
     hasClientId: !!process.env.GITHUB_CLIENT_ID,
     hasClientSecret: !!process.env.GITHUB_CLIENT_SECRET,
     hasJwtSecret: !!process.env.JWT_SECRET,
-    callbackUrl: process.env.NODE_ENV === 'production'
-      ? 'https://cse341-rlcp.onrender.com/api/auth/github/callback'
-      : 'http://localhost:3000/api/auth/github/callback',
+    callbackUrl: 'https://cse341-rlcp.onrender.com/api/auth/github/callback',
     clientId: process.env.GITHUB_CLIENT_ID
   };
   console.log('OAuth Configuration:', config);
