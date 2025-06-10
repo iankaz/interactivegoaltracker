@@ -61,80 +61,23 @@ const swaggerOptions = {
     info: {
       title: 'Interactive Goal Tracker API',
       version: '1.0.0',
-      description: `
-# Interactive Goal Tracker API Documentation
-
-## Authentication
-This API uses GitHub OAuth for authentication. To get started:
-
-1. Visit [https://cse341-rlcp.onrender.com/api/auth/github](https://cse341-rlcp.onrender.com/api/auth/github)
-2. Authorize the application with your GitHub account
-3. Copy the JWT token provided
-4. Click the "Authorize" button at the top of this page
-5. In the "bearerAuth" field, enter your JWT token (without the word "Bearer")
-6. Click "Authorize"
-7. Close the dialog
-8. You can now test the authenticated endpoints
-
-## Available Endpoints
-
-### Authentication
-- \`GET /api/auth/github\` - Start GitHub OAuth flow
-- \`GET /api/auth/me\` - Get current user info
-- \`POST /api/auth/logout\` - Logout user
-
-### Goals
-- \`GET /api/goals\` - Get all goals
-- \`POST /api/goals\` - Create a new goal
-- \`GET /api/goals/:id\` - Get a specific goal
-- \`PUT /api/goals/:id\` - Update a goal
-- \`DELETE /api/goals/:id\` - Delete a goal
-
-### Milestones
-- \`GET /api/milestones\` - Get all milestones
-- \`POST /api/milestones\` - Create a new milestone
-- \`GET /api/milestones/:id\` - Get a specific milestone
-- \`PUT /api/milestones/:id\` - Update a milestone
-- \`DELETE /api/milestones/:id\` - Delete a milestone
-
-## Example Requests
-
-### Create a Goal
-\`\`\`json
-{
-  "title": "Learn Node.js",
-  "description": "Master Node.js and Express framework",
-  "dueDate": "2024-12-31",
-  "priority": "high"
-}
-\`\`\`
-
-### Create a Milestone
-\`\`\`json
-{
-  "title": "Complete Basic Express Course",
-  "description": "Finish the Express.js fundamentals course",
-  "dueDate": "2024-06-30",
-  "goalId": "goal_id_here",
-  "priority": "medium"
-}
-\`\`\`
-
-## Error Responses
-All endpoints return appropriate HTTP status codes:
-- 200: Success
-- 201: Created
-- 400: Bad Request
-- 401: Unauthorized
-- 403: Forbidden
-- 404: Not Found
-- 500: Server Error
-      `,
+      description: `API for managing personal goals and tracking progress
+    
+To authenticate:
+1. Click the "Authorize" button at the top of the page
+2. In the "bearerAuth" field, enter your JWT token (without the word "Bearer")
+3. Click "Authorize"
+4. Close the dialog
+5. You can now test the authenticated endpoints`
     },
     servers: [
       {
-        url: 'https://cse341-rlcp.onrender.com',
-        description: 'Production server'
+        url: process.env.NODE_ENV === 'production' 
+          ? 'https://cse341-rlcp.onrender.com'
+          : 'http://localhost:3000',
+        description: process.env.NODE_ENV === 'production' 
+          ? 'Production server'
+          : 'Local development server'
       }
     ],
     components: {
@@ -143,15 +86,280 @@ All endpoints return appropriate HTTP status codes:
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'JWT',
-          description: 'Enter your JWT token here (without the word "Bearer"). You can get this token by authenticating with GitHub at /api/auth/github'
+          description: 'Enter your JWT token here.\nExample: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+        }
+      },
+      schemas: {
+        Goal: {
+          type: 'object',
+          required: ['title', 'description'],
+          properties: {
+            title: {
+              type: 'string'
+            },
+            description: {
+              type: 'string'
+            },
+            targetDate: {
+              type: 'string',
+              format: 'date'
+            },
+            status: {
+              type: 'string',
+              enum: ['pending', 'in-progress', 'completed']
+            },
+            progress: {
+              type: 'number',
+              minimum: 0,
+              maximum: 100
+            }
+          }
+        },
+        User: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string'
+            },
+            username: {
+              type: 'string'
+            },
+            email: {
+              type: 'string'
+            }
+          }
         }
       }
     },
-    security: [{
-      bearerAuth: []
-    }]
+    paths: {
+      '/api/auth/github': {
+        get: {
+          summary: 'Authenticate with GitHub',
+          description: 'Redirects to GitHub OAuth login',
+          tags: ['Auth'],
+          responses: {
+            '302': {
+              description: 'Redirects to GitHub'
+            }
+          }
+        }
+      },
+      '/api/auth/github/callback': {
+        get: {
+          summary: 'GitHub OAuth callback',
+          description: 'Handles the callback from GitHub OAuth',
+          tags: ['Auth'],
+          responses: {
+            '302': {
+              description: 'Redirects to client with token'
+            }
+          }
+        }
+      },
+      '/api/auth/me': {
+        get: {
+          summary: 'Get current user',
+          description: 'Returns the currently authenticated user',
+          tags: ['Auth'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': {
+              description: 'User data',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/User'
+                  }
+                }
+              }
+            },
+            '401': {
+              description: 'Not authenticated'
+            }
+          }
+        }
+      },
+      '/api/auth/logout': {
+        post: {
+          summary: 'Logout user',
+          description: 'Logs out the current user',
+          tags: ['Auth'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': {
+              description: 'Logged out successfully'
+            }
+          }
+        }
+      },
+      '/api/goals': {
+        get: {
+          summary: 'Get all goals for the authenticated user',
+          tags: ['Goals'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': {
+              description: 'List of goals',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'array',
+                    items: {
+                      $ref: '#/components/schemas/Goal'
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        post: {
+          summary: 'Create a new goal',
+          tags: ['Goals'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/Goal'
+                }
+              }
+            }
+          },
+          responses: {
+            '201': {
+              description: 'Goal created successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/Goal'
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      '/api/goals/{id}': {
+        parameters: [
+          {
+            in: 'path',
+            name: 'id',
+            required: true,
+            schema: {
+              type: 'string'
+            }
+          }
+        ],
+        get: {
+          summary: 'Get a specific goal',
+          tags: ['Goals'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': {
+              description: 'Goal details',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/Goal'
+                  }
+                }
+              }
+            }
+          }
+        },
+        put: {
+          summary: 'Update a goal',
+          tags: ['Goals'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/Goal'
+                }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'Goal updated successfully',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/Goal'
+                  }
+                }
+              }
+            }
+          }
+        },
+        delete: {
+          summary: 'Delete a goal',
+          tags: ['Goals'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': {
+              description: 'Goal deleted successfully'
+            }
+          }
+        }
+      },
+      '/api/goals/{id}/progress': {
+        put: {
+          summary: 'Update goal progress',
+          description: 'Updates the progress of a specific goal',
+          tags: ['Goals'],
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            {
+              in: 'path',
+              name: 'id',
+              required: true,
+              schema: {
+                type: 'string'
+              }
+            }
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['progress'],
+                  properties: {
+                    progress: {
+                      type: 'number',
+                      minimum: 0,
+                      maximum: 100
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'Progress updated successfully'
+            },
+            '400': {
+              description: 'Invalid input'
+            },
+            '401': {
+              description: 'Not authenticated'
+            },
+            '404': {
+              description: 'Goal not found'
+            }
+          }
+        }
+      }
+    }
   },
-  apis: ['./src/routes/*.js'],
+  apis: ['./src/routes/*.js']
 };
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
