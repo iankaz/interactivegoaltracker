@@ -8,7 +8,9 @@ const GitHubStrategy = require('passport-github2').Strategy;
 passport.use(new GitHubStrategy({
     clientID: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
-    callbackURL: "/api/auth/github/callback"
+    callbackURL: process.env.NODE_ENV === 'production'
+      ? 'https://cse341-rlcp.onrender.com/api/auth/github/callback'
+      : 'http://localhost:3000/api/auth/github/callback'
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
