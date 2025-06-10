@@ -22,10 +22,10 @@ app.use(passport.initialize());
 app.get('/', (req, res) => {
   res.json({
     message: 'Welcome to Interactive Goal Tracker API',
-    documentation: '/api-docs',
+    documentation: `${BASE_URL}/api-docs`,
     endpoints: {
-      auth: '/api/auth',
-      goals: '/api/goals'
+      auth: `${BASE_URL}/api/auth`,
+      goals: `${BASE_URL}/api/goals`
     }
   });
 });
@@ -108,7 +108,12 @@ mongoose.connect(process.env.MONGODB_URI)
   .catch(err => console.error('MongoDB connection error:', err));
 
 const PORT = process.env.PORT || 3000;
+const BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://cse341-rlcp.onrender.com'
+  : `http://localhost:${PORT}`;
+
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-  console.log(`API Documentation available at http://localhost:${PORT}/api-docs`);
+  console.log(`API Documentation available at ${BASE_URL}/api-docs`);
+  console.log(`Base URL: ${BASE_URL}`);
 }); 
