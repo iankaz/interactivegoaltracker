@@ -5,12 +5,17 @@ const User = require('../models/user.model');
 // GitHub OAuth strategy configuration
 const GitHubStrategy = require('passport-github2').Strategy;
 
+// Configure callback URL based on environment
+const callbackURL = process.env.NODE_ENV === 'production'
+  ? 'https://cse341-rlcp.onrender.com/api/auth/github/callback'
+  : 'http://localhost:3000/api/auth/github/callback';
+
+console.log('Using GitHub callback URL:', callbackURL);
+
 passport.use(new GitHubStrategy({
     clientID: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
-    callbackURL: process.env.NODE_ENV === 'production'
-      ? 'https://cse341-rlcp.onrender.com/api/auth/github/callback'
-      : 'http://localhost:3000/api/auth/github/callback'
+    callbackURL: callbackURL
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
@@ -68,13 +73,17 @@ const generateToken = (user) => {
 };
 
 // GitHub OAuth routes
-exports.githubAuth = passport.authenticate('github', { 
-  scope: ['user:email'],
-  session: false 
-});
+exports.githubAuth = (req, res, next) => {
+  console.log('Starting GitHub authentication...');
+  passport.authenticate('github', { 
+    scope: ['user:email'],
+    session: false 
+  })(req, res, next);
+};
 
 exports.githubCallback = (req, res, next) => {
   console.log('GitHub callback received with code:', req.query.code);
+  console.log('Callback URL:', req.originalUrl);
   
   passport.authenticate('github', { session: false }, (err, user) => {
     if (err) {
