@@ -1,6 +1,7 @@
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
+const OAuth2Strategy = require('passport-oauth2').Strategy;
 
 // GitHub OAuth strategy configuration
 const GitHubStrategy = require('passport-github2').Strategy;
@@ -21,7 +22,63 @@ if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
   console.error('GITHUB_CLIENT_SECRET:', process.env.GITHUB_CLIENT_SECRET ? 'Set' : 'Not Set');
 }
 
-passport.use(new GitHubStrategy({
+// Create a custom OAuth2 strategy for GitHub
+class CustomGitHubStrategy extends OAuth2Strategy {
+  constructor(options, verify) {
+    options = options || {};
+    options.authorizationURL = options.authorizationURL || 'https://github.com/login/oauth/authorize';
+    options.tokenURL = options.tokenURL || 'https://github.com/login/oauth/access_token';
+    options.scope = options.scope || 'user:email';
+    options.customHeaders = options.customHeaders || {
+      'Accept': 'application/json'
+    };
+
+    super(options, verify);
+    this.name = 'github';
+    this._userProfileURL = 'https://api.github.com/user';
+    this._userEmailURL = 'https://api.github.com/user/emails';
+  }
+
+  userProfile(accessToken, done) {
+    this._oauth2.get(this._userProfileURL, accessToken, (err, body, res) => {
+      if (err) {
+        return done(err);
+      }
+
+      try {
+        const json = JSON.parse(body);
+        const profile = {
+          id: json.id,
+          username: json.login,
+          displayName: json.name,
+          photos: json.avatar_url ? [{ value: json.avatar_url }] : [],
+          emails: []
+        };
+
+        // Get user emails
+        this._oauth2.get(this._userEmailURL, accessToken, (err, body, res) => {
+          if (err) {
+            return done(err);
+          }
+
+          try {
+            const emails = JSON.parse(body);
+            profile.emails = emails
+              .filter(email => email.primary)
+              .map(email => ({ value: email.email }));
+            return done(null, profile);
+          } catch (e) {
+            return done(e);
+          }
+        });
+      } catch (e) {
+        return done(e);
+      }
+    });
+  }
+}
+
+passport.use(new CustomGitHubStrategy({
     clientID: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
     callbackURL: callbackURL,
