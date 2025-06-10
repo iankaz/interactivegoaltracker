@@ -14,10 +14,18 @@ passport.use(new GitHubStrategy({
   },
   async (accessToken, refreshToken, profile, done) => {
     try {
+      console.log('GitHub Profile:', {
+        id: profile.id,
+        username: profile.username,
+        emails: profile.emails,
+        photos: profile.photos
+      });
+
       // Check if user exists
       let user = await User.findOne({ githubId: profile.id });
       
       if (!user) {
+        console.log('Creating new user for GitHub ID:', profile.id);
         // Create new user if doesn't exist
         user = await User.create({
           githubId: profile.id,
@@ -25,7 +33,9 @@ passport.use(new GitHubStrategy({
           email: profile.emails?.[0]?.value || `${profile.username}@github.com`,
           avatar: profile.photos?.[0]?.value
         });
+        console.log('New user created:', user._id);
       } else {
+        console.log('Existing user found:', user._id);
         // Update last login
         user.lastLogin = Date.now();
         await user.save();
@@ -34,6 +44,11 @@ passport.use(new GitHubStrategy({
       return done(null, user);
     } catch (error) {
       console.error('GitHub OAuth Error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       return done(error, null);
     }
   }
@@ -42,6 +57,7 @@ passport.use(new GitHubStrategy({
 // Generate JWT token
 const generateToken = (user) => {
   if (!user || !user._id) {
+    console.error('Invalid user object:', user);
     throw new Error('Invalid user object');
   }
   return jwt.sign(
@@ -58,12 +74,28 @@ exports.githubAuth = passport.authenticate('github', {
 });
 
 exports.githubCallback = (req, res, next) => {
+  console.log('GitHub callback received with code:', req.query.code);
+  
   passport.authenticate('github', { session: false }, (err, user) => {
-    if (err || !user) {
-      return res.status(401).send('<h2>Authentication failed</h2>');
+    if (err) {
+      console.error('Authentication error:', err);
+      return res.status(401).send(`
+        <h2>Authentication failed</h2>
+        <p>Error: ${err.message}</p>
+        <p>Please try again or contact support if the problem persists.</p>
+      `);
+    }
+    if (!user) {
+      console.error('No user returned from authentication');
+      return res.status(401).send(`
+        <h2>Authentication failed</h2>
+        <p>No user data received from GitHub.</p>
+        <p>Please try again or contact support if the problem persists.</p>
+      `);
     }
     try {
       const token = generateToken(user);
+      console.log('Token generated successfully for user:', user._id);
       // Return a simple HTML page with the token and a copy button
       res.send(`
         <html>
@@ -84,7 +116,12 @@ exports.githubCallback = (req, res, next) => {
         </html>
       `);
     } catch (error) {
-      res.status(500).send('<h2>Token generation failed</h2>');
+      console.error('Token generation error:', error);
+      res.status(500).send(`
+        <h2>Token generation failed</h2>
+        <p>Error: ${error.message}</p>
+        <p>Please try again or contact support if the problem persists.</p>
+      `);
     }
   })(req, res, next);
 };

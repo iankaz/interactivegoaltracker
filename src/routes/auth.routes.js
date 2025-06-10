@@ -5,6 +5,29 @@ const { authenticate } = require('../middleware/auth.middleware');
 
 /**
  * @swagger
+ * /api/auth/test-config:
+ *   get:
+ *     summary: Test OAuth configuration
+ *     description: Returns the current OAuth configuration (without sensitive data)
+ *     tags: [Auth]
+ *     responses:
+ *       200:
+ *         description: Configuration status
+ */
+router.get('/test-config', (req, res) => {
+  res.json({
+    nodeEnv: process.env.NODE_ENV,
+    hasClientId: !!process.env.GITHUB_CLIENT_ID,
+    hasClientSecret: !!process.env.GITHUB_CLIENT_SECRET,
+    hasJwtSecret: !!process.env.JWT_SECRET,
+    callbackUrl: process.env.NODE_ENV === 'production'
+      ? 'https://cse341-rlcp.onrender.com/api/auth/github/callback'
+      : 'http://localhost:3000/api/auth/github/callback'
+  });
+});
+
+/**
+ * @swagger
  * /api/auth/github:
  *   get:
  *     summary: Authenticate with GitHub
