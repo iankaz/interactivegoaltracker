@@ -3,6 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const passport = require('passport');
+const session = require('express-session');
 const swaggerJsDoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 
@@ -16,10 +17,29 @@ const app = express();
 // Trust proxy
 app.set('trust proxy', 1);
 
+// Session configuration
+const sessionConfig = {
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+};
+
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.NODE_ENV === 'production' 
+    ? 'https://cse341-rlcp.onrender.com'
+    : 'http://localhost:3000',
+  credentials: true
+}));
 app.use(express.json());
+app.use(session(sessionConfig));
 app.use(passport.initialize());
+app.use(passport.session());
 
 // Root route
 app.get('/', (req, res) => {
@@ -196,6 +216,10 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('-------------------');
   console.log('Database:');
   console.log(`MongoDB URI: ${process.env.MONGODB_URI ? 'Set' : 'Not Set'}`);
+  console.log('-------------------');
+  console.log('Session:');
+  console.log(`Secret: ${process.env.SESSION_SECRET ? 'Set' : 'Not Set'}`);
+  console.log(`Secure: ${sessionConfig.cookie.secure}`);
   console.log('-------------------');
 });
 
