@@ -174,15 +174,29 @@ mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('MongoDB connection error:', err));
 
+// Get port from environment variable or use default
 const PORT = process.env.PORT || 3000;
-const BASE_URL = 'https://cse341-rlcp.onrender.com';
+const BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://cse341-rlcp.onrender.com'
+  : `http://localhost:${PORT}`;
 
 // Start server
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`API Documentation available at ${BASE_URL}/api-docs`);
+  console.log('Server Configuration:');
+  console.log('-------------------');
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Port: ${PORT}`);
   console.log(`Base URL: ${BASE_URL}`);
-  console.log('Environment:', process.env.NODE_ENV);
+  console.log(`API Documentation: ${BASE_URL}/api-docs`);
+  console.log('-------------------');
+  console.log('GitHub OAuth Configuration:');
+  console.log(`Client ID: ${process.env.GITHUB_CLIENT_ID ? 'Set' : 'Not Set'}`);
+  console.log(`Client Secret: ${process.env.GITHUB_CLIENT_SECRET ? 'Set' : 'Not Set'}`);
+  console.log(`Callback URL: ${BASE_URL}/api/auth/github/callback`);
+  console.log('-------------------');
+  console.log('Database:');
+  console.log(`MongoDB URI: ${process.env.MONGODB_URI ? 'Set' : 'Not Set'}`);
+  console.log('-------------------');
 });
 
 // Handle server errors
@@ -190,5 +204,6 @@ server.on('error', (error) => {
   console.error('Server error:', error);
   if (error.code === 'EADDRINUSE') {
     console.error(`Port ${PORT} is already in use`);
+    process.exit(1);
   }
 }); 
