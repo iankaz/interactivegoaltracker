@@ -20,6 +20,7 @@ router.get('/test-config', (req, res) => {
     hasClientId: !!process.env.GITHUB_CLIENT_ID,
     hasClientSecret: !!process.env.GITHUB_CLIENT_SECRET,
     hasJwtSecret: !!process.env.JWT_SECRET,
+    hasSessionSecret: !!process.env.SESSION_SECRET,
     callbackUrl: 'https://cse341-rlcp.onrender.com/api/auth/github/callback',
     clientId: process.env.GITHUB_CLIENT_ID
   };
