@@ -14,13 +14,21 @@ console.log('Using GitHub callback URL:', callbackURL);
 console.log('GitHub Client ID:', process.env.GITHUB_CLIENT_ID ? 'Set' : 'Not Set');
 console.log('GitHub Client Secret:', process.env.GITHUB_CLIENT_SECRET ? 'Set' : 'Not Set');
 
+// Verify environment variables
+if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+  console.error('Missing required GitHub OAuth environment variables!');
+  console.error('GITHUB_CLIENT_ID:', process.env.GITHUB_CLIENT_ID ? 'Set' : 'Not Set');
+  console.error('GITHUB_CLIENT_SECRET:', process.env.GITHUB_CLIENT_SECRET ? 'Set' : 'Not Set');
+}
+
 passport.use(new GitHubStrategy({
     clientID: process.env.GITHUB_CLIENT_ID,
     clientSecret: process.env.GITHUB_CLIENT_SECRET,
     callbackURL: callbackURL,
-    proxy: true // Add this to handle proxy issues
+    proxy: true,
+    passReqToCallback: true
   },
-  async (accessToken, refreshToken, profile, done) => {
+  async (req, accessToken, refreshToken, profile, done) => {
     try {
       console.log('GitHub Profile:', {
         id: profile.id,
@@ -79,6 +87,16 @@ const generateToken = (user) => {
 exports.githubAuth = (req, res, next) => {
   console.log('Starting GitHub authentication...');
   console.log('Request headers:', req.headers);
+  console.log('GitHub Client ID:', process.env.GITHUB_CLIENT_ID);
+  
+  if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+    return res.status(500).send(`
+      <h2>Server Configuration Error</h2>
+      <p>GitHub OAuth credentials are not properly configured.</p>
+      <p>Please contact the administrator.</p>
+    `);
+  }
+
   passport.authenticate('github', { 
     scope: ['user:email'],
     session: false 
@@ -90,6 +108,14 @@ exports.githubCallback = (req, res, next) => {
   console.log('Callback URL:', req.originalUrl);
   console.log('Request headers:', req.headers);
   
+  if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+    return res.status(500).send(`
+      <h2>Server Configuration Error</h2>
+      <p>GitHub OAuth credentials are not properly configured.</p>
+      <p>Please contact the administrator.</p>
+    `);
+  }
+
   passport.authenticate('github', { 
     session: false,
     failureRedirect: '/auth/error'
