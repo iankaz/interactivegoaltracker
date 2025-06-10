@@ -27,38 +27,50 @@ exports.validateGoal = [
   
   body('targetDate')
     .isISO8601()
-    .withMessage('Invalid target date')
-    .custom((value) => {
-      if (new Date(value) < new Date()) {
-        throw new Error('Target date must be in the future');
-      }
-      return true;
-    }),
+    .withMessage('Invalid target date'),
   
   body('progress')
     .optional()
-    .isInt({ min: 0, max: 100 })
+    .isFloat({ min: 0, max: 100 })
     .withMessage('Progress must be between 0 and 100'),
   
   body('milestones')
     .optional()
     .isArray()
-    .withMessage('Milestones must be an array'),
-  
-  body('milestones.*.title')
-    .optional()
+    .withMessage('Milestones must be an array')
+];
+
+exports.validateMilestone = [
+  body('title')
     .trim()
     .isLength({ min: 3, max: 100 })
-    .withMessage('Milestone title must be between 3 and 100 characters'),
+    .withMessage('Title must be between 3 and 100 characters'),
   
-  body('milestones.*.description')
-    .optional()
+  body('description')
     .trim()
-    .isLength({ min: 10, max: 500 })
-    .withMessage('Milestone description must be between 10 and 500 characters'),
+    .isLength({ min: 10, max: 1000 })
+    .withMessage('Description must be between 10 and 1000 characters'),
   
-  body('milestones.*.dueDate')
+  body('status')
+    .optional()
+    .isIn(['not_started', 'in_progress', 'completed', 'on_hold'])
+    .withMessage('Invalid status'),
+  
+  body('dueDate')
+    .isISO8601()
+    .withMessage('Invalid due date'),
+  
+  body('completedDate')
     .optional()
     .isISO8601()
-    .withMessage('Invalid milestone due date')
+    .withMessage('Invalid completed date'),
+  
+  body('priority')
+    .optional()
+    .isIn(['low', 'medium', 'high'])
+    .withMessage('Invalid priority'),
+  
+  body('goalId')
+    .isMongoId()
+    .withMessage('Invalid goal ID')
 ]; 

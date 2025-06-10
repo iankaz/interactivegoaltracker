@@ -11,21 +11,20 @@ exports.createGoal = async (req, res) => {
 
     const goal = new Goal({
       ...req.body,
-      userId: req.user.id
+      userId: req.user._id
     });
 
     await goal.save();
     res.status(201).json(goal);
   } catch (error) {
-    res.status(500).json({ message: 'Error creating goal', error: error.message });
+    res.status(400).json({ message: 'Error creating goal', error: error.message });
   }
 };
 
 // Get all goals for a user
 exports.getGoals = async (req, res) => {
   try {
-    const goals = await Goal.find({ userId: req.user.id })
-      .sort({ createdAt: -1 });
+    const goals = await Goal.find({ userId: req.user._id });
     res.json(goals);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching goals', error: error.message });
@@ -37,7 +36,7 @@ exports.getGoal = async (req, res) => {
   try {
     const goal = await Goal.findOne({
       _id: req.params.id,
-      userId: req.user.id
+      userId: req.user._id
     });
 
     if (!goal) {
@@ -59,8 +58,8 @@ exports.updateGoal = async (req, res) => {
     }
 
     const goal = await Goal.findOneAndUpdate(
-      { _id: req.params.id, userId: req.user.id },
-      { $set: req.body },
+      { _id: req.params.id, userId: req.user._id },
+      { ...req.body },
       { new: true, runValidators: true }
     );
 
@@ -70,7 +69,7 @@ exports.updateGoal = async (req, res) => {
 
     res.json(goal);
   } catch (error) {
-    res.status(500).json({ message: 'Error updating goal', error: error.message });
+    res.status(400).json({ message: 'Error updating goal', error: error.message });
   }
 };
 
@@ -79,7 +78,7 @@ exports.deleteGoal = async (req, res) => {
   try {
     const goal = await Goal.findOneAndDelete({
       _id: req.params.id,
-      userId: req.user.id
+      userId: req.user._id
     });
 
     if (!goal) {
@@ -119,5 +118,70 @@ exports.updateProgress = async (req, res) => {
     res.json(goal);
   } catch (error) {
     res.status(500).json({ message: 'Error updating progress', error: error.message });
+  }
+};
+
+exports.addMilestone = async (req, res) => {
+  try {
+    const goal = await Goal.findOne({
+      _id: req.params.id,
+      userId: req.user._id
+    });
+    
+    if (!goal) {
+      return res.status(404).json({ message: 'Goal not found' });
+    }
+    
+    goal.milestones.push(req.body);
+    await goal.save();
+    
+    res.status(201).json(goal);
+  } catch (error) {
+    res.status(400).json({ message: 'Error adding milestone', error: error.message });
+  }
+};
+
+exports.updateMilestone = async (req, res) => {
+  try {
+    const goal = await Goal.findOne({
+      _id: req.params.id,
+      userId: req.user._id
+    });
+    
+    if (!goal) {
+      return res.status(404).json({ message: 'Goal not found' });
+    }
+    
+    const milestone = goal.milestones.id(req.params.milestoneId);
+    if (!milestone) {
+      return res.status(404).json({ message: 'Milestone not found' });
+    }
+    
+    Object.assign(milestone, req.body);
+    await goal.save();
+    
+    res.json(goal);
+  } catch (error) {
+    res.status(400).json({ message: 'Error updating milestone', error: error.message });
+  }
+};
+
+exports.deleteMilestone = async (req, res) => {
+  try {
+    const goal = await Goal.findOne({
+      _id: req.params.id,
+      userId: req.user._id
+    });
+    
+    if (!goal) {
+      return res.status(404).json({ message: 'Goal not found' });
+    }
+    
+    goal.milestones.pull(req.params.milestoneId);
+    await goal.save();
+    
+    res.json({ message: 'Milestone deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error deleting milestone', error: error.message });
   }
 }; 

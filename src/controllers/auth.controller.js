@@ -20,8 +20,8 @@ passport.use(new GitHubStrategy({
         user = await User.create({
           githubId: profile.id,
           username: profile.username,
-          email: profile.emails[0].value,
-          avatar: profile.photos[0].value
+          email: profile.emails?.[0]?.value || `${profile.username}@github.com`,
+          avatar: profile.photos?.[0]?.value
         });
       } else {
         // Update last login
@@ -31,6 +31,7 @@ passport.use(new GitHubStrategy({
       
       return done(null, user);
     } catch (error) {
+      console.error('GitHub OAuth Error:', error);
       return done(error, null);
     }
   }
@@ -38,23 +39,53 @@ passport.use(new GitHubStrategy({
 
 // Generate JWT token
 const generateToken = (user) => {
+  if (!user || !user._id) {
+    throw new Error('Invalid user object');
+  }
   return jwt.sign(
     { id: user._id, email: user.email },
-    process.env.JWT_SECRET,
+    process.env.JWT_SECRET || 'fallback_secret_key',
     { expiresIn: '24h' }
   );
 };
 
 // GitHub OAuth routes
-exports.githubAuth = passport.authenticate('github', { scope: ['user:email'] });
-
-exports.githubCallback = passport.authenticate('github', { 
-  failureRedirect: '/login',
+exports.githubAuth = passport.authenticate('github', { 
+  scope: ['user:email'],
   session: false 
-}, (req, res) => {
-  const token = generateToken(req.user);
-  res.redirect(`${process.env.CLIENT_URL}?token=${token}`);
 });
+
+exports.githubCallback = (req, res, next) => {
+  passport.authenticate('github', { session: false }, (err, user) => {
+    if (err || !user) {
+      return res.status(401).send('<h2>Authentication failed</h2>');
+    }
+    try {
+      const token = generateToken(user);
+      // Return a simple HTML page with the token and a copy button
+      res.send(`
+        <html>
+          <body>
+            <h2>Authentication Successful!</h2>
+            <p>Copy and use this token in Swagger or Postman:</p>
+            <input type="text" value="${token}" id="token" style="width:80%" readonly />
+            <button onclick="copyToken()">Copy Token</button>
+            <script>
+              function copyToken() {
+                var copyText = document.getElementById('token');
+                copyText.select();
+                document.execCommand('copy');
+                alert('Token copied to clipboard!');
+              }
+            </script>
+          </body>
+        </html>
+      `);
+    } catch (error) {
+      res.status(500).send('<h2>Token generation failed</h2>');
+    }
+  })(req, res, next);
+};
 
 // Get current user
 exports.getCurrentUser = async (req, res) => {
@@ -65,11 +96,16 @@ exports.getCurrentUser = async (req, res) => {
     }
     res.json(user);
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('Get Current User Error:', error);
+    res.status(500).json({ 
+      message: 'Server error', 
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined 
+    });
   }
 };
 
 // Logout
 exports.logout = (req, res) => {
+  res.clearCookie('auth_token');
   res.json({ message: 'Logged out successfully' });
 }; 

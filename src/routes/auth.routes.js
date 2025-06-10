@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
-const { protect } = require('../middleware/auth.middleware');
+const { authenticate } = require('../middleware/auth.middleware');
 
 /**
  * @swagger
@@ -44,7 +44,7 @@ router.get('/github/callback', authController.githubCallback);
  *       401:
  *         description: Not authenticated
  */
-router.get('/me', protect, authController.getCurrentUser);
+router.get('/me', authenticate, authController.getCurrentUser);
 
 /**
  * @swagger
@@ -59,6 +59,6 @@ router.get('/me', protect, authController.getCurrentUser);
  *       200:
  *         description: Logged out successfully
  */
-router.post('/logout', protect, authController.logout);
+router.post('/logout', authenticate, authController.logout);
 
 module.exports = router; 
